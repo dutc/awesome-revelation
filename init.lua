@@ -37,7 +37,9 @@ config = {
     -- special `rule.any` key. If its true, then we use the `match.any` function
     -- for comparison.
     match = {
-        exact = aw_rules.match,
+        exact = function(c, rule)
+            return not c.minimized and aw_rules.match(c, rule)
+        end,
         any   = aw_rules.match_any
     },
 }
@@ -124,11 +126,15 @@ function expose(rule, s)
     local t = awful.tag.new({config.tag_name},
                             scr,
                             awful.layout.suit.fair)[1]
+    local zt = awful.tag.new({config.tag_name .. "_zoom"},
+                            scr,
+                            awful.layout.suit.fair)[1]                        
     awful.tag.viewonly(t, t.screen)
     match_clients(rule, capi.client.get(scr), t)
     local function restore()
         awful.tag.history.restore()
         t.screen = nil
+        zt.screen = nil
         capi.keygrabber.stop()
         capi.mousegrabber.stop()
 
@@ -144,6 +150,10 @@ function expose(rule, s)
 
     
     local pressedMiddle = false
+    local pressedRight = false
+    local zoomed = false
+    local zoomedClient = nil
+    
     capi.mousegrabber.run(function(mouse)
         local c = awful.mouse.client_under_pointer()
         if mouse.buttons[1] == true then
@@ -155,6 +165,19 @@ function expose(rule, s)
             return true
         elseif mouse.buttons[2] == false and pressedMiddle == true then
             pressedMiddle = false
+        elseif mouse.buttons[3] == true and pressedRight == false then
+            if not zoomed and c ~= nil then
+                awful.tag.viewonly(zt, zt.screen)
+                awful.client.toggletag(zt, c)
+                zoomedClient = c
+                zoomed = true
+            elseif zoomedClient ~= nil then
+                awful.tag.history.restore()
+                awful.client.toggletag(zt, zoomedClient)
+                zoomedClient = nil
+                zoomed = false 
+            end
+            
         end
 
         return true
